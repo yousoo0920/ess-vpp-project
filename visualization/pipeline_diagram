@@ -1,0 +1,19 @@
+// Curtailment Prediction Pipeline
+digraph {
+	A [label="단기예보 API
+(기상청)"]
+	B [label="수요예측 API
+(전력거래소)"]
+	C [label="발전량/수요 입력벡터 생성"]
+	D [label="LSTM 모델
+출력제한량 예측"]
+	E [label="자동 저장
+(입력벡터_기록.csv, 출력제한량.csv)"]
+	F [label="대시보드/보고서
+시각화"]
+	A -> C
+	B -> C
+	C -> D [label="입력 데이터"]
+	D -> E [label="결과 저장"]
+	E -> F [label="활용"]
+}
