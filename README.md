@@ -1,165 +1,256 @@
-# 출력 제한 예측 기반 ESS 및 VPP 자율 대응 시스템
+# 모델 구조 상세 설명 및 시각화 자료
 
-## 1. 프로젝트 개요
-본 프로젝트는 제주지역 재생에너지 발전소의 출력 제한(curtailment) 문제를 해결하기 위해,  
-기상·발전량·전력수요 데이터를 기반으로 출력 제한을 예측하고 이에 대응하는 ESS 충·방전 스케줄링 시스템을 구현하는 것을 목표로 한다.
+본 문서는 출력 제한 예측 모델의 **구조를 더 깊이 이해**하고  
+**데이터 → 전처리 → 시계열 변환 → 모델 입력 → 모델 내부 흐름 → 예측 → ESS 스케줄링**  
+전체 파이프라인을 한눈에 볼 수 있도록 정리한 확장판이다.
 
-## 2. 데이터 구성
-- 발전량 데이터 (2017~2024, 한국전력거래소)
-- 기상 데이터 (2022~2024, 기상청 4지점 평균, 풍향 제외)
-- 전력수요 데이터 (제주지역 시간별 수요, 단위 보정 및 시간 보정 처리)
+---
 
-모든 데이터를 시간 단위(datetime 기준)로 통일하고 결측은 0으로 보완하였다.
+# 📌 1. End-to-End 전체 아키텍처 (가장 상위 구조)
 
-## 3. 시스템 구조
+```mermaid
+flowchart LR
+    A["기상청(KMA) API"] --> C["데이터 수집(api/)"]
+    B["전력거래소(KPX) API"] --> C
+    C --> D["전처리(preprocessing/)"]
+    D --> E["파생 변수 생성(feature engineering)"]
+    E --> F["시계열 윈도잉(Windowing)<br/>24시간 입력 → 1시간 예측"]
+    F --> G["정규화(MinMaxScaler)<br/>scaler_fixed.pkl 저장"]
+    G --> H["LSTM 학습(modeling/main_model.py)"]
+    H --> I["최종 모델(h5) 저장<br/>model_fixed.h5"]
 
+    I --> J["main_daily_run.py (일일 입력 벡터 생성)"]
+    G --> J
+    C --> J
+
+    J --> K["main_model_predict.py<br/>출력 제한 예측"]
+    K --> L["predicted_curtailments.csv 저장"]
+    L --> M["ESS 충·방전 스케줄러(향후 추가)"]
 ```
-기상/수요/발전량 정제 → 시계열 통합 → 상관분석 → 시계열 입력 생성 → LSTM 학습/예측 → ESS 운용 판단
-```
 
-## 4. 모델 설계
-- 입력 시퀀스: 과거 24시간
-- 출력: 다음 1시간 태양광 or 풍력 발전량
-- 모델: LSTM (PyTorch 기반)
-- 정규화: MinMaxScaler
+---
 
-## 5. 결과 요약
-- 예측 정확도(MAE 기준): TBD
-- 일사량과 태양광 발전량의 상관관계: 0.89
-- 풍속과 풍력 발전량의 상관관계: 0.69
-- 풍향 제거 결정: 벡터 평균의 불안정성으로 제외함
+# 📌 2. LSTM 모델 내부 구조 (자세한 내부 흐름도)
 
-## 6. 폴더 구조
-
-```
-Curtailment_Predictor_Project/
-├─ data/
-│   ├─ raw/
-│   ├─ processed/
-│   └─ final/final_input_X.csv
-├─ scripts/
-│   ├─ preprocessing/
-│   ├─ analysis/
-│   ├─ modeling/
-├─ results/
-├─ reports/
-└─ README.md
-```
 ```mermaid
 flowchart TD
-    A[입력벡터 CSV 로드<br/>입력벡터_기록.csv] --> B[가장 최근 벡터 추출]
-    B --> C[스케일러 로드<br/>scaler_fixed.pkl]
-    C --> D[입력 벡터 스케일링]
-
-    D --> E[모델 로드<br/>model_fixed.h5]
-    E --> F[model.predict() 수행]
-
-    F --> G[출력 제한량 계산<br/>round(prediction, 2)]
-    G --> H[예측 결과 콘솔 출력]
-
-    H --> I[결과 CSV 파일 생성/이어쓰기<br/>predicted_curtailments.csv]
+    X["입력 X (batch, 24, features)"] --> L1["LSTM Layer 1<br/>(hidden=64, return_sequences=True)"]
+    L1 --> DO1["Dropout(0.2)"]
+    DO1 --> L2["LSTM Layer 2<br/>(hidden=32, return_sequences=False)"]
+    L2 --> DO2["Dropout(0.2)"]
+    DO2 --> D1["Dense(16) + ReLU"]
+    D1 --> OUT["Dense(1)<br/>출력 제한량(MWh)"]
 ```
-```mermaid
-graph TD
-    P[main_predict.py] --> CSV[입력 데이터 CSV]
-    P --> PKL[스케일러 scaler_fixed.pkl]
-    P --> H5[모델 model_fixed.h5]
-    P --> OUT[예측 결과 predicted_curtailments.csv]
 
-    CSV --> P
-    PKL --> P
-    H5 --> P
-    P --> OUT
-```
+---
+
+# 📌 3. 시계열 입력 생성(Windowing) 구조도  
+24시간(24×N feature) → 다음 1시간 예측(y)
+
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant M as main_predict.py
-    participant S as Scaler
-    participant NN as LSTM Model
-    participant R as Results CSV
+    participant D as 데이터프레임
+    participant W as Windowing
+    participant X as X(Input)
+    participant Y as y(Target)
 
-    U->>M: 실행
-    M->>M: 최신 입력 벡터 로드
-    M->>S: scaler_fixed.pkl 불러오기
-    S-->>M: scaled_input 반환
-    M->>NN: model_fixed.h5 로드 후 예측
-    NN-->>M: predicted_output
-    M->>R: predicted_curtailments.csv 이어쓰기
+    D->>W: 전체 시계열 데이터 전달
+    W-->>X: 24시간 구간(슬라이딩 윈도우) 생성
+    W-->>Y: X 다음 시점의 출력 제한량 생성
+    X->>모델: (batch, 24, feature_size)
+    Y->>모델: (batch, 1)
 ```
-```mermaid
-flowchart LR
-    KMA[기상청 API<br/>기상 데이터] --> API[api/ 스크립트<br/>데이터 수집]
-    KPX[전력거래소 API<br/>발전·수요 데이터] --> API
 
-    API --> PP[preprocessing/<br/>전처리 & 피처엔지니어링]
-    PP --> DS[data/processed<br/>학습 입력·타깃]
+---
 
-    DS --> TRAIN[modeling/<br/>LSTM 학습(main_model.py)]
-    TRAIN --> MODEL[저장된 모델<br/>model_fixed.h5]
-    TRAIN --> SCALER[저장된 스케일러<br/>scaler_fixed.pkl]
+# 📌 4. 입력 특징(Features) 구조 (예시)
 
-    MODEL --> PRED[main_daily_run.py<br/>일일 예측]
-    SCALER --> PRED
-    API --> PRED
-
-    PRED --> RES[results/<br/>predicted_curtailments.csv]
-    RES --> SCHED[ESS·VPP 스케줄러<br/>(추가 구현)]
-    SCHED --> HW[라즈베리파이·ESP32·부하<br/>실험 데모]
-```
-```mermaid
-flowchart TD
-    R1[data/raw/<br/>원시 CSV] --> C1[cleaning<br/>결측/단위 보정]
-    C1 --> M1[merge<br/>기상+발전+수요 통합]
-    M1 --> F1[feature engineering<br/>파생변수 생성]
-    F1 --> W1[windowing<br/>과거 24h → X, 다음 1h → y]
-    W1 --> S1[scaling<br/>MinMaxScaler]
-    S1 --> T1[train/val split]
-
-    T1 --> LSTM[LSTM 모델 학습<br/>modeling/]
-    LSTM --> BEST[best model 저장<br/>model_fixed.h5]
-    S1 --> SAVE_SCALER[scaler 저장<br/>scaler_fixed.pkl]
-
-    BEST --> METRIC[results/<br/>성능 지표·그래프]
-```
-```mermaid
-flowchart TD
-    TS[Windows Task Scheduler<br/>23:00] --> BAT1[run_daily_vector.bat]
-    BAT1 --> PY1[main_daily_run.py]
-
-    PY1 --> A1[api/<br/>오늘 데이터 추가 수집]
-    A1 --> P1[preprocessing/<br/>입력벡터 업데이트<br/>입력벡터_기록.csv]
-
-    P1 --> PY2[main_model_predict.py<br/>(예측 스크립트)]
-    PY2 --> LOADM[모델 & 스케일러 로드<br/>model_fixed.h5, scaler_fixed.pkl]
-    LOADM --> PRED[model.predict()]
-
-    PRED --> CSV1[results/<br/>predicted_curtailments.csv<br/>누적 저장]
-    CSV1 --> ESS[ESS 스케줄링 로직<br/>(향후 적용)]
-```
 ```mermaid
 graph TD
-    R[ess-vpp-project] --> A[analysis<br/>EDA·그래프]
-    R --> B[api<br/>KMA/KPX 수집 코드]
-    R --> C[data<br/>raw·processed·final]
-    R --> D[modeling<br/>LSTM 모델 정의·학습]
-    R --> E[preprocessing<br/>전처리 파이프라인]
-    R --> F[results<br/>예측·성능 결과]
-    R --> G[tools<br/>배치·유틸 스크립트]
-    R --> H[utils<br/>공통 함수]
-    R --> V[visualization<br/>보고서용 그림]
+    A["기상 데이터"] --> X["입력벡터"]
+    B["풍속"] --> X
+    C["일사량"] --> X
+    D["기온"] --> X
 
-    R --> M1[main.py]
-    R --> M2[main_model.py]
-    R --> M3[main_daily_run.py]
-    R --> B1[run_daily_vector.bat]
-    R --> B2[run_model_predict.bat]
+    E["전력 수요"] --> X
+    F["지역별 발전량"] --> X
+
+    G["파생특성<br/>전일 대비 변화율"] --> X
+    H["파생특성<br/>증감률(d/dt)"] --> X
+    I["파생특성<br/>rolling mean / std"] --> X
 ```
+
+---
+
+# 📌 5. Feature Engineering 상세 구조
+
 ```mermaid
 flowchart LR
-    CSV[입력벡터_기록.csv<br/>마지막 행 로드] --> SCALE[scaler_fixed.pkl<br/>transform]
-    SCALE --> MODEL[model_fixed.h5<br/>load_model]
-    MODEL --> PRED[model.predict()<br/>출력제한량 예측]
-    PRED --> OUT_CSV[predicted_curtailments.csv<br/>날짜·예측값 이어쓰기]
-    PRED --> PRINT[콘솔 출력<br/>예측된 출력제한량]
+    RAW["원시 데이터(raw)"] --> CLEAN["결측 처리 + 단위 통일"]
+    CLEAN --> MERGE["기상 + 발전 + 수요 병합"]
+    MERGE --> GEN1["전일 대비 변화량(d1)"]
+    MERGE --> GEN2["변동성(rolling std)"]
+    MERGE --> GEN3["증감률(gradient)"]
+    GEN1 --> COMB["최종 Feature Matrix"]
+    GEN2 --> COMB
+    GEN3 --> COMB
 ```
+
+---
+
+# 📌 6. 모델 학습(Training) 전체 프로세스
+
+```mermaid
+flowchart TD
+    A["데이터 로드"] --> B["전처리(정규화, NA 처리)"]
+    B --> C["시계열 분할(windowing)"]
+    C --> D["Train/Validation Split"]
+    D --> E["LSTM 모델 구성"]
+    E --> F["훈련(epoch 반복)"]
+    F --> G["최적 모델 저장(model_fixed.h5)"]
+    B --> H["Scaler 저장(scaler_fixed.pkl)"]
+```
+
+---
+
+# 📌 7. 모델 입출력 텐서 흐름 (Tensor Flow)
+
+```mermaid
+flowchart LR
+    A["입력 텐서 X<br/>(batch, 24, features)"] --> B["LSTM 1 (64 units)"]
+    B --> C["LSTM 2 (32 units)"]
+    C --> D["Dense 16"]
+    D --> E["Dense 1"]
+    E --> F["예측값(MWh)"]
+```
+
+---
+
+# 📌 8. Attention-LSTM(옵션) 모델 구조도  
+(만약 향후 개선 버전을 README에 기록하고 싶다면)
+
+```mermaid
+flowchart TD
+    X["입력 X<br/>(batch,24,F)"] --> L["LSTM Encoder"]
+    L --> AT["Attention Layer<br/>가중치 계산"]
+    AT --> C["Context Vector"]
+    C --> D["Dense Layer"]
+    D --> Y["출력 제한량 예측"]
+```
+
+---
+
+# 📌 9. 예측 스크립트( main_model_predict.py ) 처리 흐름
+
+```mermaid
+flowchart TD
+    A["입력벡터_기록.csv 로드"] --> B["가장 최근 샘플 추출"]
+    B --> C["scaler_fixed.pkl 로드<br/>→ transform"]
+    C --> D["model_fixed.h5 로드"]
+    D --> E["model.predict()"]
+    E --> F["예측값 반올림"]
+    F --> G["predicted_curtailments.csv 저장"]
+    G --> H["ESS 스케줄링(향후 추가)"]
+```
+
+---
+
+# 📌 10. 월간/주간 Error 분석 그래프 구조도 (EDA용)
+
+### MAE 변화
+
+```mermaid
+graph LR
+    A("2024-01") --> B("2024-02")
+    B --> C("2024-03")
+    C --> D("2024-04")
+    D --> E("...")
+
+    style A fill:#cfe3ff,stroke:#000
+    style E fill:#cfe3ff,stroke:#000
+```
+
+### Error Distribution Concept
+
+```mermaid
+flowchart TD
+    A["실제값(y_true)"] --> COMP["오차 = |y_true - y_pred|"]
+    B["예측값(y_pred)"] --> COMP
+    COMP --> HIST["오차 분포 히스토그램"]
+    COMP --> PLOT["MAE / RMSE 시계열 플롯"]
+```
+
+(실제 그래프는 프로젝트의 `/visualization`에 저장)
+
+---
+
+# 📌 11. ESS 스케줄링 로직(추가 예정) 시각화
+
+```mermaid
+flowchart LR
+    PRED["예측된 출력 제한량"] --> TH["임계치 판단"]
+    TH -->|높음| CHG["ESS 충전 시작"]
+    TH -->|낮음| DSG["ESS 방전 or 대기"]
+    CHG --> U["VPP/부하 연동"]
+    DSG --> U
+```
+
+---
+
+# 📌 12. 향후 확장 가능한 모델 구조들 (문서용)
+
+### CNN-LSTM 구조
+
+```mermaid
+flowchart TD
+    X["입력 시퀀스"] --> CNN["1D CNN feature extractor"]
+    CNN --> LSTM["LSTM Layer"]
+    LSTM --> D["Dense Layers"]
+    D --> Y["예측 결과"]
+```
+
+### Transformer Encoder 기반 구조
+
+```mermaid
+flowchart TD
+    X["입력 (batch,24,F)"] --> T1["Multi-Head Attention"]
+    T1 --> T2["Feed Forward Network"]
+    T2 --> T3["Pooling"]
+    T3 --> Y["출력 제한량 예측"]
+```
+
+---
+
+# 📌 13. README에서 모델 구조 기술 예시 문장
+
+> 본 모델은 LSTM 기반 시계열 예측 모델로,  
+> 과거 24시간 입력(기상·수요·발전·파생특성)을 기반으로  
+> 다음 1시간의 출력 제한량(MWh)을 예측한다.  
+> 모델은 2개 LSTM 계층(64,32 units)과 Dropout, Dense 계층으로 구성되며  
+> MinMaxScaler로 정규화된 입력 벡터를 사용한다.
+
+---
+
+# 📌 14. 전체 모델 구조 요약 그림 (최종 요약)
+
+```mermaid
+flowchart TD
+    X["입력<br/>24h×Feature"] --> A["전처리·정규화"]
+    A --> B["LSTM Encoder Layer 1"]
+    B --> C["LSTM Encoder Layer 2"]
+    C --> D["Dense Layer"]
+    D --> Y["출력 제한 예측(MWh)"]
+```
+
+---
+
+# ✔ 끝  
+필요하다면 다음도 추가해줄 수 있음:
+
+✅ 모델 학습 결과 시각 자료(예측 vs 실제 그래프)  
+✅ 고급 Attention 가중치 시각화  
+✅ ESS 동작 알고리즘 상세 flowchart  
+✅ VPP 전체 계통 흐름도(3D 스타일 mermaid)  
+✅ 프로젝트 논문 스타일 Introduction/Methodology/Experiment 섹션 정리  
+
+원하는 스타일이 있으면 말해줘.
