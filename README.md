@@ -41,8 +41,8 @@ flowchart TD
     %% Layer 1: Data Acquisition
     %% -----------------------
     subgraph L1[Layer 1: Data Acquisition]
-        A1[KPX 데이터<br/>(발전량·출력제어 등)]
-        A2[기상청 ASOS<br/>(일사·풍속·기온 등)]
+        A1[KPX 데이터<br/>(발전량·출력제어)]
+        A2[기상청 ASOS<br/>(일사·풍속·기온)]
         A3[제주 계통 수요 데이터]
 
         A1 --> M1
@@ -58,7 +58,7 @@ flowchart TD
     subgraph L2[Layer 2: Preprocessing]
         P1[결측치 보간<br/>(Linear Interpolation)]
         P2[이상치 제거<br/>(IQR Method)]
-        P3[Feature Engineering<br/>(Cyclical·Lag·Δ Features)]
+        P3[Feature Engineering<br/>(Cyclical·Lag·ΔFeatures)]
         P4[MinMax Scaling<br/>(0~1 Normalization)]
 
         M1 --> P1 --> P2 --> P3 --> P4
@@ -82,7 +82,7 @@ flowchart TD
         D1{Grid Capacity Check}
 
         D2A[Mode A:<br/>ESS 충전 (Curtailment 방어)]
-        D2B[Mode B:<br/>ESS 방전/대기 (Economic / VPP)]
+        D2B[Mode B:<br/>ESS 방전/대기 (Economic/VPP)]
 
         D1 -->|위험 초과| D2A
         D1 -->|정상| D2B
@@ -90,13 +90,14 @@ flowchart TD
 
     E3 --> D1
 
-    %% Style (색상)
+    %% Style (색상/정렬 개선)
     style L1 fill:#fffde7,stroke:#fbc02d
     style L2 fill:#e8f5e9,stroke:#43a047
     style L3 fill:#e3f2fd,stroke:#1e88e5
     style L4 fill:#f3e5f5,stroke:#8e24aa
 
     style D1 fill:#fce4ec,stroke:#d81b60
+
 ```
 
 ---
