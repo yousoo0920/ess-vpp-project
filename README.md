@@ -94,13 +94,7 @@ graph TD
 ### 4.2. 실측 vs 예측 그래프 (Actual vs Predicted)
 
 아래 그래프는 **예측 출력제한량 vs 실제 출력제한량**을 시간 순서로 비교한 결과입니다.
-
-![Uploading image.png…]()
-
-
-```
-![time_series_comparison](이미지경로)
-```
+<img width="1200" height="600" alt="image" src="https://github.com/user-attachments/assets/5164d173-6efe-4e89-b244-a358c67bd954" />
 
 ---
 
