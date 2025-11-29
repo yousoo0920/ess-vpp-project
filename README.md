@@ -37,47 +37,56 @@
 
 ```mermaid
 flowchart TD
-    %% Layer 1
-    subgraph L1["Layer 1: Data Acquisition"]
-        A1["KPX 데이터 (발전량·출력제어 등)"]
-        A2["기상청 ASOS (일사·풍속·기온 등)"]
-        A3["제주 계통 수요 데이터"]
 
-        A1 --> M1
-        A2 --> M1
-        A3 --> M1
+%% ============================================
+%% Layer 1: Data Acquisition
+%% ============================================
 
-        M1["시계열 데이터 통합"]
-    end
+    K1[KPX 데이터<br/>(발전량 · 출력제어 등)]
+    W1[기상청 데이터<br/>(일사 · 풍속 · 기온 등)]
+    L1[제주 계통 수요 데이터]
 
-    %% Layer 2
-    subgraph L2["Layer 2: Preprocessing"]
-        P1["결측치 보간 (Linear Interpolation)"]
-        P2["이상치 제거 (IQR Method)"]
-        P3["Feature Engineering (Cyclical · Lag · Δ Features)"]
-        P4["MinMax Scaling (0~1 Normalization)"]
+    SUB1[시계열 데이터 통합]
 
-        M1 --> P1 --> P2 --> P3 --> P4
-    end
+    K1 --> SUB1
+    W1 --> SUB1
+    L1 --> SUB1
 
-    %% Layer 3
-    subgraph L3["Layer 3: Prediction Engine"]
-        E1["Sliding Window (Input: 과거 24h)"]
-        E2["LSTM 2-Layer Network"]
-        E3["미래 1시간 발전량 예측 (T+1h)"]
 
-        P4 --> E1 --> E2 --> E3
-    end
+%% ============================================
+%% Layer 2: Preprocessing
+%% ============================================
 
-    %% Layer 4
-    subgraph L4["Layer 4: ESS Decision Logic"]
-        D1{"Grid Capacity Check"}
+    P1[결측치 보간<br/>(Linear Interpolation)]
+    P2[이상치 제거<br/>(IQR Method)]
+    P3[Feature Engineering<br/>(Cyclical · Lag · Δ Features)]
+    P4[MinMax Scaling<br/>(0~1 Normalization)]
 
-        D2A["Mode A: ESS 충전 (Curtailment 방어)"]
-        D2B["Mode B: ESS 방전/대기 (Economic / VPP)"]
+    SUB1 --> P1 --> P2 --> P3 --> P4
 
-        D1 -->|"위험 초과"| D2A
-        D1 -->|"정상"| D2B
+
+%% ============================================
+%% Layer 3: Prediction Engine
+%% ============================================
+
+    M1[Sliding Window 생성<br/>(입력: 과거 24h)]
+    M2[LSTM 2-Layer Network]
+    M3[미래 1시간 발전량 예측<br/>(T+1h)]
+
+    P4 --> M1 --> M2 --> M3
+
+
+%% ============================================
+%% Layer 4: ESS Decision Logic
+%% ============================================
+
+    D1{Grid Capacity Check}
+
+    M3 --> D1
+
+    D1 -->|위험 초과| A1[Mode A: ESS 충전<br/>(Curtailment 방어)]
+    D1 -->|정상| B1[Mode B: ESS 방전/대기<br/>(Economic · VPP)]
+
     end
 
     E3 --> D1
