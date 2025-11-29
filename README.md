@@ -72,17 +72,7 @@ flowchart TD
 
     D1 -->|위험 초과| A1
     D1 -->|정상| B1
-    end
 
-    E3 --> D1
-
-    %% 색상 스타일
-    style L1 fill:#fffde7,stroke:#fbc02d
-    style L2 fill:#e8f5e9,stroke:#43a047
-    style L3 fill:#e3f2fd,stroke:#1e88e5
-    style L4 fill:#f3e5f5,stroke:#8e24aa
-
-    style D1 fill:#fce4ec,stroke:#d81b60
 ```
 
 ---
