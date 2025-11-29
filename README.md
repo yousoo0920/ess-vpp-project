@@ -1,5 +1,5 @@
 # ⚡️ 출력 제한 예측 기반 ESS-VPP 자율 대응 시스템
-> **Autonomous ESS-VPP Response System based on Curtailment Prediction**
+> **Autonomous ESS-VPP Response System based on Curtailment Prediction**  
 > **Jeju Island Renewable Energy Curtailment Solution Project**
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
@@ -12,9 +12,9 @@
 제주 지역 재생에너지 발전 비중이 급증함에 따라, 전력 계통의 과부하를 방지하기 위한 **출력 제어(Curtailment)**가 빈번하게 발생하고 있습니다. 이는 연간 수십억 원의 발전 손실과 청정 에너지 낭비를 초래합니다. 본 프로젝트는 딥러닝 기반의 정밀 예측 기술을 통해 출력 제어를 사전에 감지하고, **ESS(에너지 저장 장치)를 능동적으로 제어**하여 손실을 최소화하는 **지능형 VPP(가상발전소) 솔루션**입니다.
 
 ### 1.2. 솔루션 핵심 요약
-1.  **High-Precision Prediction**: LSTM 기반 시계열 모델링으로 1시간 뒤 발전량을 **MAE 1.98 MW** 수준으로 정밀 예측
-2.  **Risk Quantification**: 계통 한계 용량(Grid Limit) 대비 초과분을 계산하여 출력 제어 위험도(Risk Score) 산출
-3.  **Automated Control**: 위험도에 따른 ESS 충전(Load Shift) 및 방전(Peak Shaving) 스케줄링 자동화
+1.  **High-Precision Prediction**: LSTM 기반 시계열 모델링으로 1시간 뒤 발전량을 **MAE 1.98 MW** 수준으로 정밀 예측  
+2.  **Risk Quantification**: 계통 한계 용량(Grid Limit) 대비 초과분을 계산하여 출력 제어 위험도(Risk Score) 산출  
+3.  **Automated Control**: 위험도에 따른 ESS 충전(Load Shift) 및 방전(Peak Shaving) 스케줄링 자동화  
 
 ---
 
@@ -39,14 +39,14 @@ graph TD
 
     subgraph AI_Core_Layer [Layer 3: Prediction Engine]
         H --> I[Sliding Window<br/>(Input: T-24h)]
-        I --> J[**LSTM Network**]
+        I --> J[LSTM Network]
         J --> K(미래 1시간 발전량 예측<br/>Output: T+1h)
     end
 
     subgraph Control_Layer [Layer 4: ESS Decision Logic]
         K --> L{Grid Capacity Check}
-        L -- "Risk > Threshold" --> M[🔴 **Mode A: Curtailment Defense**<br/>(Emergency Charge)]
-        L -- "Risk < Threshold" --> N[🟢 **Mode B: Economic Operation**<br/>(Arbitrage / Standby)]
+        L -- "Risk > Threshold" --> M[🔴 Mode A: Curtailment Defense<br/>(Emergency Charge)]
+        L -- "Risk < Threshold" --> N[🟢 Mode B: Economic Operation<br/>(Arbitrage / Standby)]
         M & N --> O[EMS Command Interface]
     end
 
@@ -60,6 +60,7 @@ graph TD
 ## 3. 데이터 엔지니어링 및 모델링 상세 (Data & Modeling)
 
 ### 3.1. 데이터셋 명세 (Dataset Specification)
+
 | Feature Group | Variables | Unit | Description |
 | :--- | :--- | :--- | :--- |
 | **Generation** | PV_Amount, WT_Amount | MW | 태양광 및 풍력 실측 발전량 (Target) |
@@ -68,6 +69,7 @@ graph TD
 | **Time** | Hour_Sin, Hour_Cos | - | 시간의 주기성을 반영한 파생 변수 (Cyclical) |
 
 ### 3.2. 모델 하이퍼파라미터 (Configuration)
+
 Grid Search를 통해 도출된 최적 파라미터 셋입니다.
 
 | Parameter | Value | Description |
@@ -94,16 +96,16 @@ sequenceDiagram
     
     activate M
     M->>M: Forward Propagation
-    M-->>C: Predicted Value ($P_{pred}$)
+    M-->>C: Predicted Value (P_pred)
     deactivate M
     
     C->>C: Inverse Transform (MW Unit)
-    C->>C: Check Grid Capacity ($C_{limit}$)
+    C->>C: Check Grid Capacity (C_limit)
     
     alt Over Capacity
-        C-->>S: 🛑 ESS **CHARGE** (Curtailment Mode)
+        C-->>S: ESS CHARGE (Curtailment Mode)
     else Stable Grid
-        C-->>S: 🟢 ESS **STANDBY/DISCHARGE** (VPP Mode)
+        C-->>S: ESS STANDBY/DISCHARGE (VPP Mode)
     end
 ```
 
@@ -114,6 +116,7 @@ sequenceDiagram
 본 프로젝트의 핵심인 LSTM 예측 모델의 성능 지표와 시각화 결과입니다.
 
 ### 4.1. 정량적 평가 지표 (Quantitative Metrics)
+
 테스트 데이터셋(2023-2024년) 기준, **MAE 1.98 MW**를 달성하여 기존 통계적 기법 대비 월등한 성능을 입증하였습니다.
 
 | Model Architecture | MAE (MW) | RMSE (MW) | R² Score | MAPE (%) | 비고 |
@@ -122,10 +125,13 @@ sequenceDiagram
 | SVR (Support Vector) | 8.32 | 11.05 | 0.81 | 10.2% | 머신러닝 |
 | **Proposed LSTM** | **1.98** | **2.85** | **0.98** | **2.1%** | **SOTA 달성** |
 
-### 4.2. 실측 vs 예측 비교 그래프 (Actual vs Predicted)
-GitHub README에서 렌더링 가능한 Mermaid 차트를 사용하여, 피크 시간대(12시~14시)의 예측 성능을 시각화했습니다.
+### 4.2. 실측 vs 예측 비교 “코드 표현” (GitHub Mermaid 미지원)
 
-```mermaid
+> GitHub Mermaid가 `xychart-beta`를 지원하지 않기 때문에,  
+> 아래 블록은 **그냥 코드 형태로만** 남기고, 직접 그래프를 그리고 싶다면  
+> Python/Matplotlib 등으로 시각화해서 이미지를 넣으면 된다.
+
+```text
 xychart-beta
     title "Generation Prediction Analysis (Actual vs Predicted)"
     x-axis [10h, 11h, 12h, 13h, 14h, 15h, 16h, 17h]
@@ -133,12 +139,12 @@ xychart-beta
     line [15, 45, 88, 92, 85, 65, 30, 10]
     line [14, 46, 89, 91, 86, 64, 31, 11]
 ```
-> <span style="color:#69b3a2">── Actual (실측값)</span> / <span style="color:#404040">── Predicted (예측값)</span>
 
-### 4.3. 학습 손실 곡선 (Training Loss Curve)
-모델 학습 과정에서의 MSE Loss 감소 추이입니다.
+> Actual (실측값) / Predicted (예측값)
 
-```mermaid
+### 4.3. 학습 손실 곡선 “코드 표현”
+
+```text
 xychart-beta
     title "Model Loss Convergence (MSE)"
     x-axis [0, 20, 40, 60, 80, 100]
@@ -147,9 +153,11 @@ xychart-beta
 ```
 
 ### 4.4. 산점도 분석 (Scatter Plot Analysis)
-예측 정확도를 검증하기 위한 산점도 분석 결과입니다. (GitHub Mermaid 미지원으로 텍스트 요약)
-* **Regression Line**: $y = 0.99x + 0.02$ (Ideal: $y=x$)
-* **Distribution**: 데이터 포인트가 대각선(Identity Line)에 밀집하여 편향(Bias)이 거의 없음을 확인.
+
+예측 정확도를 검증하기 위한 산점도 분석 결과입니다. (텍스트 요약)
+
+- Regression Line: y = 0.99x + 0.02 (Ideal: y = x)  
+- Distribution: 데이터 포인트가 대각선(Identity Line)에 밀집하여 편향(Bias)이 거의 없음을 확인.  
 
 ---
 
@@ -158,20 +166,21 @@ xychart-beta
 실제 출력 제한이 발생했던 2023년의 데이터를 기반으로 본 시스템을 적용했을 때의 시뮬레이션 결과입니다.
 
 ### 5.1. 운용 알고리즘 흐름도 (Logic Flow)
+
 ```mermaid
 flowchart TD
     Start((System On)) --> Sense[데이터 수집]
-    Sense --> Predict[발전량 예측 ($P_{pred}$)]
-    Predict --> Compare{위험 감지?<br/>$P_{pred} > Limit$}
+    Sense --> Predict[발전량 예측 (P_pred)]
+    Predict --> Compare{위험 감지?<br/>P_pred > Limit}
     
-    Compare -- YES (위험) --> Calc[초과분 계산<br/>Delta = $P_{pred} - Limit$]
+    Compare -- YES (위험) --> Calc[초과분 계산<br/>Delta = P_pred - Limit]
     Calc --> Action1[ESS 충전 지령<br/>Power = Delta]
-    Action1 --> Save[📉 **Curtailment 방어**]
+    Action1 --> Save[출력제어 방어]
     
     Compare -- NO (안정) --> Econ{시장 가격 분석<br/>SMP > Threshold?}
     Econ -- High --> Action2[ESS 방전<br/>(수익 창출)]
     Econ -- Low --> Action3[대기 모드<br/>(SoC 유지)]
-    Action2 --> Profit[💰 **VPP 수익화**]
+    Action2 --> Profit[VPP 수익화]
     
     Save --> End((Cycle End))
     Profit --> End
@@ -179,11 +188,12 @@ flowchart TD
 ```
 
 ### 5.2. 도입 기대 효과 (Expected Outcome)
+
 | 구분 | 도입 전 (AS-IS) | 도입 후 (TO-BE) | 개선율 |
 | :--- | :---: | :---: | :---: |
-| **출력 제어 횟수** | 104회 / 년 | **12회 / 년** | **🔻 88% 감소** |
-| **손실 전력량** | 15.2 GWh | **1.8 GWh** | **🔻 88% 감소** |
-| **경제적 가치** | 0 원 (손실) | **약 21억 원** | **전환 창출** |
+| **출력 제어 횟수** | 104회 / 년 | **12회 / 년** | **88% 감소** |
+| **손실 전력량** | 15.2 GWh | **1.8 GWh** | **88% 감소** |
+| **경제적 가치** | 0 원 (손실) | **약 21억 원** | 손실 전환 |
 
 ---
 
@@ -191,7 +201,7 @@ flowchart TD
 
 ```bash
 # 1. Repository Clone
-git clone [https://github.com/yousoo0920/ess-vpp-project.git](https://github.com/yousoo0920/ess-vpp-project.git)
+git clone https://github.com/yousoo0920/ess-vpp-project.git
 cd ess-vpp-project
 
 # 2. Install Dependencies
@@ -202,7 +212,6 @@ python main.py --mode predict --date 2024-05-20 --visualize True
 ```
 
 ---
-**Copyright © 2025 ESS-VPP Project Team.**
-*Powered by PyTorch & Jeju Energy Data.*
 
-이거에서 문법 맞게 고쳐줘.
+**Copyright © 2025 ESS-VPP Project Team.**  
+*Powered by PyTorch & Jeju Energy Data.*
