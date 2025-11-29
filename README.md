@@ -36,33 +36,67 @@
 ## 2. 전체 시스템 아키텍처 (System Architecture)
 
 ```mermaid
-graph TD
-    subgraph Raw_Data_Layer ["Layer 1: Data Acquisition"]
-        A["KPX 발전량 데이터 (2017-2024)"] --> D_Integrate
-        B["기상청 ASOS (일사·풍속·기온)"] --> D_Integrate
-        C["제주 계통 수요 데이터"] --> D_Integrate
+flowchart TD
+    %% -----------------------
+    %% Layer 1: Data Acquisition
+    %% -----------------------
+    subgraph L1[Layer 1: Data Acquisition]
+        A1[KPX 데이터<br/>(발전량·출력제어 등)]
+        A2[기상청 ASOS<br/>(일사·풍속·기온 등)]
+        A3[제주 계통 수요 데이터]
+
+        A1 --> M1
+        A2 --> M1
+        A3 --> M1
+
+        M1[시계열 데이터 통합]
     end
 
-    subgraph Preprocessing_Layer ["Layer 2: Preprocessing"]
-        D_Integrate["시계열 데이터 통합"] --> E["결측치 보간 (Linear Interpolation)"]
-        E --> F["이상치 제거 (IQR Method)"]
-        F --> G["Feature Engineering (Cyclical Encoding, Lag, Δ변수 등)"]
-        G --> H["MinMax Scaling (0~1 Normalization)"]
+    %% -----------------------
+    %% Layer 2: Preprocessing
+    %% -----------------------
+    subgraph L2[Layer 2: Preprocessing]
+        P1[결측치 보간<br/>(Linear Interpolation)]
+        P2[이상치 제거<br/>(IQR Method)]
+        P3[Feature Engineering<br/>(Cyclical·Lag·Δ Features)]
+        P4[MinMax Scaling<br/>(0~1 Normalization)]
+
+        M1 --> P1 --> P2 --> P3 --> P4
     end
 
-    subgraph AI_Core_Layer ["Layer 3: Prediction Engine"]
-        H --> I["Sliding Window (Input: 과거 24h)"]
-        I --> J["LSTM 2-Layer Network"]
-        J --> K["미래 1시간 발전량 예측 (T+1h)"]
+    %% -----------------------
+    %% Layer 3: Prediction Engine
+    %% -----------------------
+    subgraph L3[Layer 3: Prediction Engine]
+        E1[Sliding Window<br/>(Input: 과거 24h)]
+        E2[LSTM 2-Layer Network]
+        E3[미래 1시간 발전량 예측<br/>(T+1h)]
+
+        P4 --> E1 --> E2 --> E3
     end
 
-    subgraph Control_Layer ["Layer 4: ESS Decision Logic"]
-        K --> L{"Grid Capacity Check"}
-        L --> M["Mode A: Curtailment Defense (Emergency Charge)"]
-        L --> N["Mode B: Economic Operation (Arbitrage / Standby)"]
-        M --> O["EMS Command Interface"]
-        N --> O
+    %% -----------------------
+    %% Layer 4: ESS Decision Logic
+    %% -----------------------
+    subgraph L4[Layer 4: ESS Decision Logic]
+        D1{Grid Capacity Check}
+
+        D2A[Mode A:<br/>ESS 충전 (Curtailment 방어)]
+        D2B[Mode B:<br/>ESS 방전/대기 (Economic / VPP)]
+
+        D1 -->|위험 초과| D2A
+        D1 -->|정상| D2B
     end
+
+    E3 --> D1
+
+    %% Style (색상)
+    style L1 fill:#fffde7,stroke:#fbc02d
+    style L2 fill:#e8f5e9,stroke:#43a047
+    style L3 fill:#e3f2fd,stroke:#1e88e5
+    style L4 fill:#f3e5f5,stroke:#8e24aa
+
+    style D1 fill:#fce4ec,stroke:#d81b60
 ```
 
 ---
@@ -77,9 +111,9 @@ graph TD
 | **Weather** | Irradiance, Temperature, Wind_Speed | 발전량 영향 주요 변수 |
 | **Grid** | System_Load | 시간별 전력 수요 |
 | **Time Cyclic** | Hour_Sin/Cos, Month_Sin/Cos | 주기성 반영 파생변수 |
-| **Lag Features** | pv_lag1~24, load_lag1~24 | 시계열 패턴 학습 |
+| **Lag Features** | pv_lag1\~24, load_lag1\~24 | 시계열 패턴 학습용 지연 특성 |
 | **Change-rate (Δ)** | ΔIrradiance, ΔWindSpeed, ΔLoad | 1시간 변화율 |
-| **Ratio Features** | pv_load_ratio, curtail_ratio | 상황 판단 보조변수 |
+| **Ratio Features** | pv_load_ratio, curtail_ratio | 발전량/수요 기반 비율 특성 |
 
 ---
 
